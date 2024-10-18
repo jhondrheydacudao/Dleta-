@@ -1,0 +1,44 @@
+// api/bypass.js
+
+export default async function handler(req, res) {
+    const { id, token } = req.query;
+
+    // Validate parameters
+    if (!id) {
+        return res.status(400).json({ error: "Missing 'id' parameter" });
+    }
+
+    try {
+        // Fetch authenticator info
+        const authResponse = await fetch(`https://api-gateway.platoboost.com/v1/authenticators/8/${id}`);
+        const authData = await authResponse.json();
+
+        if (authData.key) {
+            return res.status(200).json({ message: "Key already bypassed", bypassed: true });
+        }
+
+        if (token) {
+            // Handle session with token
+            const redirectResponse = await fetch(`https://api-gateway.platoboost.com/v1/sessions/auth/8/${id}/${token}`, {
+                method: "PUT",
+            });
+            const redirectData = await redirectResponse.json();
+            return res.status(200).json({ redirect: redirectData.redirect });
+        } else {
+            // Handle captcha case
+            const captchaResponse = await fetch(`https://api-gateway.platoboost.com/v1/sessions/auth/8/${id}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ captcha: "", type: "" }), // Update this based on your captcha handling
+            });
+            const sessionData = await captchaResponse.json();
+            const redirectUrl = decodeURIComponent(sessionData.redirect);
+            return res.status(200).json({ redirect: redirectUrl });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+}
